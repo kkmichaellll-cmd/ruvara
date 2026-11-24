@@ -131,11 +131,20 @@
   }
   if (quotes.length) {
     showReview(0);
-    select('.review-control').hidden = false;
     select('.review-dots').hidden = false;
-    dots.forEach((dot, i) => dot.addEventListener('click', () => showReview(i)));
-    select('[data-review-prev]').addEventListener('click', () => showReview(reviewIndex - 1));
-    select('[data-review-next]').addEventListener('click', () => showReview(reviewIndex + 1));
+    let reviewTimer;
+    function restartReviews() {
+      clearInterval(reviewTimer);
+      if (!document.hidden && quotes.length > 1) {
+        reviewTimer = setInterval(() => showReview(reviewIndex + 1), 5000);
+      }
+    }
+    dots.forEach((dot, i) => dot.addEventListener('click', () => {
+      showReview(i);
+      restartReviews();
+    }));
+    document.addEventListener('visibilitychange', restartReviews);
+    restartReviews();
   }
 
   const enquiry = select('#enquiry');
@@ -150,4 +159,24 @@
     destination.searchParams.set('text', message);
     window.location.assign(destination.toString());
   });
+})();
+(() => {
+  const slides = [...document.querySelectorAll('.nail-slide')];
+  const preference = matchMedia('(prefers-reduced-motion: reduce)');
+  let index = 0;
+  let timer;
+  function schedule() {
+    clearInterval(timer);
+    if (preference.matches || document.hidden) return;
+    timer = setInterval(() => {
+      slides[index].removeAttribute('data-current');
+      slides[index].setAttribute('aria-hidden', 'true');
+      index = (index + 1) % slides.length;
+      slides[index].setAttribute('data-current', '');
+      slides[index].removeAttribute('aria-hidden');
+    }, 5000);
+  }
+  preference.addEventListener('change', schedule);
+  document.addEventListener('visibilitychange', schedule);
+  schedule();
 })();
