@@ -32,26 +32,16 @@
   if (desktop.addEventListener) desktop.addEventListener('change', event => { if (event.matches) toggleMenu(false); });
 
   const serviceDialog = select('#service-dialog');
-  const galleryDialog = select('#gallery-dialog');
   const canShowDialogs = typeof serviceDialog.showModal === 'function';
-  const returnTargets = new WeakMap();
-  function openDialog(dialog, trigger) {
-    returnTargets.set(dialog, trigger);
-    dialog.showModal();
-    const close = select('[data-close]', dialog);
-    if (close) close.focus({preventScroll:true});
-  }
-  [serviceDialog, galleryDialog].forEach(dialog => {
-    select('[data-close]', dialog).addEventListener('click', () => dialog.close());
-    dialog.addEventListener('click', event => {
-      if (event.target !== dialog) return;
-      const bounds = dialog.getBoundingClientRect();
-      if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) dialog.close();
-    });
-    dialog.addEventListener('close', () => {
-      const trigger = returnTargets.get(dialog);
-      if (trigger && trigger.isConnected) trigger.focus({preventScroll:true});
-    });
+  let returnTarget;
+  select('[data-close]', serviceDialog).addEventListener('click', () => serviceDialog.close());
+  serviceDialog.addEventListener('click', event => {
+    if (event.target !== serviceDialog) return;
+    const bounds = serviceDialog.getBoundingClientRect();
+    if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) serviceDialog.close();
+  });
+  serviceDialog.addEventListener('close', () => {
+    if (returnTarget?.isConnected) returnTarget.focus({preventScroll: true});
   });
 
   function showTreatment(card, trigger) {
@@ -61,10 +51,15 @@
     detailPhoto.alt = photo.alt;
     select('#detail-name').textContent = select('.treatment-title', card).textContent;
     select('#detail-price').textContent = select('.treatment-price', card).textContent;
-    select('#detail-time').textContent = select('.treatment-time', card).textContent;
+    const duration = select('.treatment-time', card)?.textContent;
+    const time = select('#detail-time');
+    time.textContent = duration || '';
+    time.parentElement.hidden = !duration;
     select('#detail-text').textContent = select('.description', card).textContent;
     select('#detail-book').href = select('.treatment-inline .button', card).href;
-    openDialog(serviceDialog, trigger);
+    returnTarget = trigger;
+    serviceDialog.showModal();
+    select('[data-close]', serviceDialog).focus({preventScroll: true});
   }
   all('.treatment').forEach(card => {
     const summary = select('summary', card);
@@ -82,70 +77,6 @@
       event.preventDefault(); showTreatment(card, link);
     });
   });
-
-  const gallery = all('.gallery-item');
-  let photoIndex = 0;
-  function displayPhoto(index) {
-    photoIndex = (index + gallery.length) % gallery.length;
-    const link = gallery[photoIndex];
-    const photo = select('#gallery-photo');
-    photo.src = link.href;
-    photo.alt = select('img', link).alt;
-    select('#gallery-caption').textContent = photo.alt;
-  }
-  if (canShowDialogs) {
-    gallery.forEach((link, index) => {
-      link.addEventListener('click', event => {
-        if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
-        event.preventDefault(); displayPhoto(index); openDialog(galleryDialog, link);
-      });
-    });
-    select('[data-gallery-prev]').addEventListener('click', () => displayPhoto(photoIndex - 1));
-    select('[data-gallery-next]').addEventListener('click', () => displayPhoto(photoIndex + 1));
-    galleryDialog.addEventListener('keydown', event => {
-      if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
-      event.preventDefault(); displayPhoto(photoIndex + (event.key === 'ArrowLeft' ? -1 : 1));
-    });
-    const photo = select('#gallery-photo');
-    let touchStart = null;
-    photo.addEventListener('touchstart', event => {
-      touchStart = event.touches.length === 1 ? [event.touches[0].clientX, event.touches[0].clientY] : null;
-    }, {passive:true});
-    photo.addEventListener('touchcancel', () => {touchStart = null;}, {passive:true});
-    photo.addEventListener('touchend', event => {
-      if (!touchStart) return;
-      const dx = event.changedTouches[0].clientX - touchStart[0];
-      const dy = event.changedTouches[0].clientY - touchStart[1];
-      if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.4) displayPhoto(photoIndex + (dx < 0 ? 1 : -1));
-      touchStart = null;
-    }, {passive:true});
-  }
-
-  const quotes = all('.quote');
-  const dots = all('[data-review-index]');
-  let reviewIndex = 0;
-  function showReview(index) {
-    reviewIndex = (index + quotes.length) % quotes.length;
-    quotes.forEach((quote, i) => { quote.hidden = i !== reviewIndex; });
-    dots.forEach((dot, i) => dot.setAttribute('aria-current', String(i === reviewIndex)));
-  }
-  if (quotes.length) {
-    showReview(0);
-    select('.review-dots').hidden = false;
-    let reviewTimer;
-    function restartReviews() {
-      clearInterval(reviewTimer);
-      if (!document.hidden && quotes.length > 1) {
-        reviewTimer = setInterval(() => showReview(reviewIndex + 1), 5000);
-      }
-    }
-    dots.forEach((dot, i) => dot.addEventListener('click', () => {
-      showReview(i);
-      restartReviews();
-    }));
-    document.addEventListener('visibilitychange', restartReviews);
-    restartReviews();
-  }
 
   const enquiry = select('#enquiry');
   enquiry.addEventListener('submit', event => {
